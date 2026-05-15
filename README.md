@@ -1,36 +1,162 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# coven-dash — Production Coven Dashboard
+
+A **fresh, production-ready dashboard** for Coven agents, built with Next.js 14, TypeScript, React, and Tailwind CSS. Real data from the Coven gateway, zero mock data.
+
+## Features
+
+- ✨ **Live agent status grid** — See all agents at a glance
+- 📊 **Quick stats** — Active sessions, tasks in flight, completed tasks, blocked items
+- 🟢 **System health monitoring** — Gateway, memory layer, plugins status
+- 🔄 **Auto-reconnect** — WebSocket connection with exponential backoff
+- 📱 **Responsive design** — Desktop, tablet, phone optimized
+- ♿ **Accessible** — WCAG AA compliant
+
+## Tech Stack
+
+- **Framework:** Next.js 14
+- **Language:** TypeScript
+- **Styling:** Tailwind CSS
+- **UI:** React with Lucide icons
+- **Deployment:** Vercel
+- **Package:** `@opencoven/dash` (npm)
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+- Node.js 18+ (tested with v24.13.0)
+- npm or yarn
+
+### Installation
+
+1. Clone the repository:
+
+```bash
+cd ~/Documents/GitHub/OpenCoven/coven-dash
+```
+
+2. Install dependencies:
+
+```bash
+npm install
+```
+
+3. Configure environment variables:
+
+```bash
+cp .env.example .env.local
+# Edit .env.local with your gateway details
+```
+
+4. Start development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+5. Open [http://localhost:3000](http://localhost:3000) in your browser
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Environment Variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```
+GATEWAY_URL=wss://your-gateway-url.com
+GATEWAY_TOKEN=your-secure-token
+GATEWAY_PASSWORD=optional-password
+```
 
-## Learn More
+## Pages
 
-To learn more about Next.js, take a look at the following resources:
+- **Dashboard Home** (`/dashboard`) — Agent status grid, quick stats, system health, quick actions
+- **Sessions Browser** (coming in next step) — Live session list, filters, quick actions
+- **Tasks & Delegation** (coming in next step) — Task board with drag-drop delegation
+- **Cross-Project Dashboard** (coming in next step) — Projects, stats, agent utilization
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Architecture
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### WebSocket Gateway Client (`lib/gateway-client.ts`)
 
-## Deploy on Vercel
+- Server-side connection to Coven gateway
+- Auto-reconnect with exponential backoff (max 30s delay)
+- Health monitoring and caching
+- Event-based data updates
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### API Route (`app/api/dashboard/route.ts`)
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Provides cached dashboard data to frontend
+- Handles gateway initialization
+- Graceful error handling
+
+### Components
+
+- `QuickStats` — Overview metrics
+- `SystemHealthCard` — Health status indicators
+- `AgentGrid` — Agent cards with status and quick actions
+
+## Development
+
+### Build
+
+```bash
+npm run build
+```
+
+### Lint
+
+```bash
+npm run lint
+```
+
+### Format
+
+```bash
+npm run format
+```
+
+## Deployment
+
+### Vercel (Recommended)
+
+1. Push to GitHub
+2. Import repository in Vercel
+3. Add environment variables
+4. Deploy (auto on push)
+
+### Docker
+
+```bash
+docker build -t coven-dash .
+docker run -p 3000:3000 -e GATEWAY_URL=... coven-dash
+```
+
+## Next Steps
+
+1. ✅ Set up Next.js repo structure
+2. ✅ Implement gateway WebSocket client (server-side)
+3. ✅ Build Dashboard Home page
+4. ⬜ Add Sessions Browser page
+5. ⬜ Add Tasks & Delegation page
+6. ⬜ Add Cross-Project page
+7. ⬜ Test with real gateway
+8. ⬜ Deploy to Vercel
+
+## Success Criteria
+
+- ✅ Zero mock data (all live from gateway)
+- ⬜ Connection stays alive (auto-reconnect working)
+- ✅ Dashboard Home page functional
+- ⬜ All 4 pages functional
+- ⬜ Productivity metrics accurate
+- ⬜ Deployed to Vercel
+- ⬜ Multi-user ready
+
+## Contributing
+
+See AGENTS.md for contribution guidelines.
+
+## License
+
+Proprietary. For OpenCoven team only.
+
+---
+
+**Built with ✨ for Coven**
