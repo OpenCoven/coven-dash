@@ -1,4 +1,5 @@
 import { GatewayClient, DashboardData } from "@/lib/gateway-client";
+import { readSessionFromCookies } from "@/lib/session";
 import { NextRequest, NextResponse } from "next/server";
 
 let gatewayClient: GatewayClient | null = null;
@@ -6,21 +7,14 @@ let gatewayClient: GatewayClient | null = null;
 async function initializeGateway() {
   if (gatewayClient) return gatewayClient;
 
-  const gatewayUrl = process.env.GATEWAY_URL;
-  const gatewayToken = process.env.GATEWAY_TOKEN;
-  const gatewayPassword = process.env.GATEWAY_PASSWORD;
+  // Get credentials from encrypted session cookie
+  const config = await readSessionFromCookies();
 
-  if (!gatewayUrl || !gatewayToken) {
-    throw new Error(
-      "GATEWAY_URL and GATEWAY_TOKEN environment variables are required"
-    );
+  if (!config || !config.url || !config.token) {
+    return null;
   }
 
-  gatewayClient = new GatewayClient({
-    url: gatewayUrl,
-    token: gatewayToken,
-    password: gatewayPassword,
-  });
+  gatewayClient = new GatewayClient(config);
 
   try {
     await gatewayClient.connect();
@@ -36,6 +30,13 @@ async function initializeGateway() {
 export async function GET(request: NextRequest) {
   try {
     const client = await initializeGateway();
+
+    if (!client) {
+      return NextResponse.json(
+        { error: "No gateway session available. Please log in." },
+        { status: 401 }
+      );
+    }
 
     const data = client.getCachedData();
     const health = client.getSystemHealth();

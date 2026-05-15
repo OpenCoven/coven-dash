@@ -1,13 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { DashboardData } from "@/lib/gateway-client";
 import { QuickStats } from "@/components/quick-stats";
 import { SystemHealthCard } from "@/components/system-health";
 import { AgentGrid } from "@/components/agent-grid";
-import { Plus, RefreshCw, AlertTriangle } from "lucide-react";
+import { Plus, RefreshCw, AlertTriangle, LogOut } from "lucide-react";
 
 export default function DashboardHome() {
+  const router = useRouter();
   const [data, setData] = useState<Partial<DashboardData>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -16,6 +18,11 @@ export default function DashboardHome() {
   const fetchDashboardData = async () => {
     try {
       const response = await fetch("/api/dashboard");
+      if (response.status === 401) {
+        // Session expired
+        router.push("/connect?signedOut=1");
+        return;
+      }
       if (!response.ok) {
         throw new Error("Failed to fetch dashboard data");
       }
@@ -28,6 +35,16 @@ export default function DashboardHome() {
       console.error("Dashboard fetch error:", err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/gateway/session", { method: "DELETE" });
+      router.push("/connect?signedOut=1");
+    } catch (err) {
+      console.error("Logout error:", err);
+      router.push("/connect?signedOut=1");
     }
   };
 
@@ -52,16 +69,25 @@ export default function DashboardHome() {
                 Last updated: {lastUpdate.toLocaleTimeString()}
               </p>
             </div>
-            <button
-              onClick={fetchDashboardData}
-              disabled={loading}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg transition-colors"
-            >
-              <RefreshCw
-                className={`w-4 h-4 ${loading ? "animate-spin" : ""}`}
-              />
-              Refresh
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={fetchDashboardData}
+                disabled={loading}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg transition-colors"
+              >
+                <RefreshCw
+                  className={`w-4 h-4 ${loading ? "animate-spin" : ""}`}
+                />
+                Refresh
+              </button>
+              <button
+                onClick={handleLogout}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
+              >
+                <LogOut className="w-4 h-4" />
+                Logout
+              </button>
+            </div>
           </div>
         </div>
       </header>
@@ -76,7 +102,7 @@ export default function DashboardHome() {
               <h3 className="font-semibold text-red-400">Error</h3>
               <p className="text-red-300 text-sm">{error}</p>
               <p className="text-red-400 text-xs mt-2">
-                Make sure GATEWAY_URL and GATEWAY_TOKEN are set.
+                Make sure your gateway credentials are correct.
               </p>
             </div>
           </div>
