@@ -37,19 +37,26 @@ export async function GET(request: NextRequest) {
   try {
     const client = await initializeGateway();
 
-    // Get cached data
     const data = client.getCachedData();
     const health = client.getSystemHealth();
 
     const response: DashboardData = {
       agents: data.agents || [],
       sessions: data.sessions || [],
+      tasks: data.tasks || [],
       health,
       taskStats: data.taskStats || {
         total: 0,
         completed: 0,
         inProgress: 0,
         blocked: 0,
+        completedToday: 0,
+      },
+      stats: data.stats || {
+        activeAgents: 0,
+        activeSessions: 0,
+        tasksCompletedToday: 0,
+        avgTaskDuration: 0,
       },
     };
 

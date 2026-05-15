@@ -1,6 +1,7 @@
 /**
  * Gateway WebSocket Client
  * Handles live connection to Coven gateway with auto-reconnect and health monitoring
+ * Protocol: Coven event stream (agents, sessions, tasks, memory updates)
  */
 
 export interface GatewayConfig {
@@ -9,23 +10,40 @@ export interface GatewayConfig {
   password?: string;
 }
 
+// Agent identity and status from Coven
 export interface AgentStatus {
   id: string;
-  name: string;
+  name: string;  // Nova, Cody, Sage, Charm, Kitty, etc.
   status: "online" | "offline" | "busy" | "idle";
   currentTask?: string;
   uptime: number; // seconds
   tasksCompleted: number;
-  avatar?: string;
+  tasksInProgress: number;
+  avatar?: string; // URL to agent avatar
+  lastSeen: number; // Unix timestamp
 }
 
+// Session metadata from Coven daemon
 export interface SessionMetadata {
-  id: string;
-  agentId: string;
-  harness: string;
+  id: string;           // Session UUID
+  agentId: string;      // Agent harness (codex, claude, etc)
+  projectRoot: string;  // Repository path
+  harness: string;      // Harness type: codex, claude-code, etc
   status: "active" | "idle" | "completed" | "failed";
-  startedAt: number;
+  startedAt: number;    // Unix timestamp
   tasksInFlight: number;
+  uptime: number;       // Seconds running
+}
+
+export interface TaskMetadata {
+  id: string;
+  sessionId: string;
+  description: string;
+  status: "pending" | "in-progress" | "done" | "blocked";
+  priority: "low" | "medium" | "high";
+  assignedTo: string;   // Agent name
+  createdAt: number;
+  completedAt?: number;
 }
 
 export interface SystemHealth {
@@ -34,17 +52,26 @@ export interface SystemHealth {
   pluginsHealthy: boolean;
   lastHeartbeat: number;
   reconnectAttempts: number;
+  uptime: number; // Daemon uptime
 }
 
 export interface DashboardData {
   agents: AgentStatus[];
   sessions: SessionMetadata[];
+  tasks: TaskMetadata[];
   health: SystemHealth;
   taskStats: {
     total: number;
     completed: number;
     inProgress: number;
     blocked: number;
+    completedToday: number;
+  };
+  stats: {
+    activeAgents: number;
+    activeSessions: number;
+    tasksCompletedToday: number;
+    avgTaskDuration: number; // seconds
   };
 }
 
@@ -55,9 +82,27 @@ export class GatewayClient {
   private maxReconnectAttempts = 10;
   private reconnectDelay = 1000;
   private listeners: Map<string, Set<Function>> = new Map();
-  private cachedData: Partial<DashboardData> = {};
+  private cachedData: Partial<DashboardData> = {
+    agents: [],
+    sessions: [],
+    tasks: [],
+    taskStats: {
+      total: 0,
+      completed: 0,
+      inProgress: 0,
+      blocked: 0,
+      completedToday: 0,
+    },
+    stats: {
+      activeAgents: 0,
+      activeSessions: 0,
+      tasksCompletedToday: 0,
+      avgTaskDuration: 0,
+    },
+  };
   private heartbeatInterval: NodeJS.Timeout | null = null;
   private lastHeartbeat = Date.now();
+  private connectedAt: number = 0;
 
   constructor(config: GatewayConfig) {
     this.config = config;
@@ -122,30 +167,46 @@ export class GatewayClient {
 
     if (data.type === "auth_success") {
       console.log("[Gateway] Authenticated");
+      this.connectedAt = Date.now();
       // Request initial data
       this.send({ type: "subscribe", channel: "dashboard" });
     }
 
-    if (data.type === "agent_status_update") {
+    // Agent events
+    if (data.type === "agent_status" || data.type === "agent_status_update") {
       this.updateAgentStatus(data.agent);
     }
 
-    if (data.type === "session_update") {
+    // Session events
+    if (data.type === "session_started" || data.type === "session_update") {
       this.updateSession(data.session);
     }
 
-    if (data.type === "dashboard_snapshot") {
-      this.cachedData = data;
-      this.emit("dashboard_update", data);
+    // Task events
+    if (data.type === "task_created" || data.type === "task_updated") {
+      this.updateTask(data.task);
     }
 
-    if (data.type === "health_update") {
-      this.cachedData.health = data.health;
-      this.emit("health_update", data.health);
+    // Bulk snapshot
+    if (data.type === "dashboard_snapshot") {
+      this.cachedData = { ...this.cachedData, ...data.payload };
+      this.computeStats();
+      this.emit("dashboard_update", this.cachedData);
+    }
+
+    // Health updates
+    if (data.type === "health_update" || data.type === "system_health") {
+      this.cachedData.health = data.health || data.payload;
+      this.emit("health_update", this.cachedData.health);
+    }
+
+    if (data.type === "pong") {
+      // Heartbeat response
     }
 
     if (data.type === "error") {
       console.error("[Gateway] Error:", data.message);
+      this.emit("error", data.message);
     }
   }
 
@@ -176,7 +237,64 @@ export class GatewayClient {
       this.cachedData.sessions.push(session);
     }
 
+    this.computeStats();
     this.emit("sessions_update", this.cachedData.sessions);
+  }
+
+  private updateTask(task: TaskMetadata): void {
+    if (!this.cachedData.tasks) {
+      this.cachedData.tasks = [];
+    }
+
+    const index = this.cachedData.tasks.findIndex((t) => t.id === task.id);
+    if (index >= 0) {
+      this.cachedData.tasks[index] = task;
+    } else {
+      this.cachedData.tasks.push(task);
+    }
+
+    this.computeStats();
+    this.emit("tasks_update", this.cachedData.tasks);
+  }
+
+  private computeStats(): void {
+    const now = Date.now();
+    const todayStart = new Date(now).setHours(0, 0, 0, 0);
+
+    const tasks = this.cachedData.tasks || [];
+    const taskStats = {
+      total: tasks.length,
+      completed: tasks.filter((t) => t.status === "done").length,
+      inProgress: tasks.filter((t) => t.status === "in-progress").length,
+      blocked: tasks.filter((t) => t.status === "blocked").length,
+      completedToday: tasks.filter(
+        (t) => t.status === "done" && t.completedAt && t.completedAt > todayStart
+      ).length,
+    };
+
+    const agents = this.cachedData.agents || [];
+    const sessions = this.cachedData.sessions || [];
+
+    const stats = {
+      activeAgents: agents.filter((a) => a.status === "online" || a.status === "busy").length,
+      activeSessions: sessions.filter((s) => s.status === "active").length,
+      tasksCompletedToday: taskStats.completedToday,
+      avgTaskDuration: this.calculateAvgTaskDuration(tasks),
+    };
+
+    this.cachedData.taskStats = taskStats;
+    this.cachedData.stats = stats;
+  }
+
+  private calculateAvgTaskDuration(tasks: TaskMetadata[]): number {
+    const completed = tasks.filter((t) => t.status === "done" && t.completedAt);
+    if (completed.length === 0) return 0;
+
+    const total = completed.reduce((acc, t) => {
+      return acc + ((t.completedAt || 0) - t.createdAt);
+    }, 0);
+
+    return Math.round(total / completed.length / 1000); // Convert to seconds
   }
 
   private startHeartbeat(): void {
@@ -263,6 +381,7 @@ export class GatewayClient {
         pluginsHealthy: true,
         lastHeartbeat: this.lastHeartbeat,
         reconnectAttempts: this.reconnectAttempts,
+        uptime: Math.floor((Date.now() - this.connectedAt) / 1000),
       }
     );
   }

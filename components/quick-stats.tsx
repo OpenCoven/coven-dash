@@ -2,11 +2,10 @@
 
 import { DashboardData } from "@/lib/gateway-client";
 import {
-  BarChart3,
   CheckCircle,
   Clock,
-  AlertCircle,
   Users,
+  Zap,
 } from "lucide-react";
 
 interface QuickStatsProps {
@@ -17,8 +16,14 @@ interface QuickStatsProps {
 export function QuickStats({ data, loading }: QuickStatsProps) {
   const stats = [
     {
+      label: "Active Agents",
+      value: data.stats?.activeAgents || 0,
+      icon: Zap,
+      color: "bg-purple-900/30 text-purple-400",
+    },
+    {
       label: "Active Sessions",
-      value: data.sessions?.filter((s) => s.status === "active").length || 0,
+      value: data.stats?.activeSessions || 0,
       icon: Users,
       color: "bg-blue-900/30 text-blue-400",
     },
@@ -30,15 +35,9 @@ export function QuickStats({ data, loading }: QuickStatsProps) {
     },
     {
       label: "Completed Today",
-      value: data.taskStats?.completed || 0,
+      value: data.stats?.tasksCompletedToday || 0,
       icon: CheckCircle,
       color: "bg-green-900/30 text-green-400",
-    },
-    {
-      label: "Blocked Tasks",
-      value: data.taskStats?.blocked || 0,
-      icon: AlertCircle,
-      color: "bg-red-900/30 text-red-400",
     },
   ];
 

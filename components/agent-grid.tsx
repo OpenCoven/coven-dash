@@ -1,55 +1,42 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { AgentStatus } from "@/lib/gateway-client";
-import {
-  Circle,
-  Activity,
-  AlertCircle,
-  CheckCircle,
-  Zap,
-  Plus,
-} from "lucide-react";
+import { Bot } from "lucide-react";
 
 interface AgentGridProps {
   agents: AgentStatus[];
   loading: boolean;
 }
 
-const statusColors = {
-  online: "bg-green-500",
-  offline: "bg-gray-500",
-  busy: "bg-blue-500",
-  idle: "bg-yellow-500",
+const STATUS_COLORS = {
+  online: "bg-green-900/30 border-green-700 text-green-400",
+  idle: "bg-slate-900/50 border-slate-700 text-slate-400",
+  busy: "bg-yellow-900/30 border-yellow-700 text-yellow-400",
+  offline: "bg-red-900/30 border-red-700 text-red-400",
 };
 
-const statusLabels = {
-  online: "Online",
-  offline: "Offline",
-  busy: "Busy",
-  idle: "Idle",
+const STATUS_DOTS = {
+  online: "bg-green-500",
+  idle: "bg-slate-500",
+  busy: "bg-yellow-500",
+  offline: "bg-red-500",
 };
 
 export function AgentGrid({ agents, loading }: AgentGridProps) {
-  if (loading) {
+  if (loading && agents.length === 0) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {Array(6)
-          .fill(0)
-          .map((_, i) => (
-            <div
-              key={i}
-              className="bg-slate-800 rounded-lg p-4 animate-pulse h-40"
-            />
-          ))}
+        {[...Array(6)].map((_, i) => (
+          <div key={i} className="h-32 bg-slate-800/50 rounded-lg animate-pulse" />
+        ))}
       </div>
     );
   }
 
-  if (!agents.length) {
+  if (agents.length === 0) {
     return (
-      <div className="text-center py-12 bg-slate-800 rounded-lg">
-        <Zap className="mx-auto h-12 w-12 text-slate-500 mb-2" />
+      <div className="text-center py-12">
+        <Bot className="w-12 h-12 text-slate-600 mx-auto mb-4 opacity-50" />
         <p className="text-slate-400">No agents connected yet</p>
       </div>
     );
@@ -57,51 +44,66 @@ export function AgentGrid({ agents, loading }: AgentGridProps) {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      {agents.map((agent) => (
-        <div
-          key={agent.id}
-          className="bg-slate-800 rounded-lg p-4 border border-slate-700 hover:border-slate-600 transition-colors"
-        >
-          <div className="flex items-start justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <div
-                className={`w-3 h-3 rounded-full ${statusColors[agent.status]}`}
-              />
-              <h3 className="font-medium text-white">{agent.name}</h3>
-            </div>
-            <span className="text-xs px-2 py-1 bg-slate-700 text-slate-300 rounded">
-              {statusLabels[agent.status]}
-            </span>
-          </div>
+      {agents.map((agent) => {
+        const colorClass =
+          STATUS_COLORS[agent.status as keyof typeof STATUS_COLORS] || STATUS_COLORS.offline;
+        const dotClass =
+          STATUS_DOTS[agent.status as keyof typeof STATUS_DOTS] || STATUS_DOTS.offline;
 
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-slate-400">Tasks Completed</span>
-              <span className="text-slate-200 font-medium">
-                {agent.tasksCompleted}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-400">Uptime</span>
-              <span className="text-slate-200 font-medium">
-                {formatUptime(agent.uptime)}
-              </span>
-            </div>
-            {agent.currentTask && (
-              <div className="flex justify-between">
-                <span className="text-slate-400">Current</span>
-                <span className="text-slate-200 font-medium truncate">
-                  {agent.currentTask}
-                </span>
+        return (
+          <div
+            key={agent.id}
+            className={`rounded-lg p-4 border transition-all hover:shadow-lg ${colorClass}`}
+          >
+            <div className="flex items-start justify-between mb-3">
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <div
+                  className={`w-3 h-3 rounded-full flex-shrink-0 ${dotClass}`}
+                />
+                <div className="min-w-0">
+                  <h3 className="font-semibold text-white truncate">
+                    {agent.name}
+                  </h3>
+                  <p className="text-xs opacity-75 capitalize">{agent.status}</p>
+                </div>
               </div>
-            )}
-          </div>
+              {agent.avatar && (
+                <img
+                  src={agent.avatar}
+                  alt={agent.name}
+                  className="w-8 h-8 rounded-full flex-shrink-0"
+                />
+              )}
+            </div>
 
-          <button className="w-full mt-4 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded transition-colors">
-            Delegate Task
-          </button>
-        </div>
-      ))}
+            <div className="space-y-2 text-sm">
+              {agent.currentTask && (
+                <div>
+                  <p className="opacity-75">Current Task:</p>
+                  <p className="font-mono text-xs truncate opacity-90">
+                    {agent.currentTask}
+                  </p>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div>
+                  <p className="opacity-75">Completed</p>
+                  <p className="font-bold">{agent.tasksCompleted}</p>
+                </div>
+                <div>
+                  <p className="opacity-75">In Progress</p>
+                  <p className="font-bold">{agent.tasksInProgress}</p>
+                </div>
+              </div>
+              {agent.uptime > 0 && (
+                <div className="text-xs opacity-75">
+                  Uptime: {formatUptime(agent.uptime)}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -109,7 +111,6 @@ export function AgentGrid({ agents, loading }: AgentGridProps) {
 function formatUptime(seconds: number): string {
   if (seconds < 60) return `${seconds}s`;
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
-  const hours = Math.floor(seconds / 3600);
-  const mins = Math.floor((seconds % 3600) / 60);
-  return `${hours}h ${mins}m`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`;
+  return `${Math.floor(seconds / 86400)}d`;
 }
