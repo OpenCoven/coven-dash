@@ -1,4 +1,4 @@
-import { GatewayClient, DashboardData } from "@/lib/gateway-client";
+import { GatewayClient, DashboardData } from "@/lib/gateway-client.node";
 import { readSessionFromCookies } from "@/lib/session";
 import { NextRequest, NextResponse } from "next/server";
 
